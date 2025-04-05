@@ -10,6 +10,9 @@ import board
 import busio
 import adafruit_mlx90640
 
+import microcontroller
+microcontroller.cpu.frequency = 250_000_000  # run at 250 MHz instead of 125 MHz overclock
+
 
 
 
@@ -22,7 +25,7 @@ mlx = adafruit_mlx90640.MLX90640(i2c)
 print("MLX addr detected on I2C")
 print([hex(i) for i in mlx.serial_number])
 
-mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
+mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_16_HZ
 
 
 
@@ -92,9 +95,9 @@ html_content = """
             cursor: pointer;
         }
         #heatmap {
-            width: 320px; /* Adjust for 32x24 grid with larger pixel size */
-            height: 240px; /* Adjust for 32x24 grid with larger pixel size */
-            border: 2px solid #ccc;
+            width: 640px; /* Adjust for 32x24 grid with larger pixel size */
+            height: 480px; /* Adjust for 32x24 grid with larger pixel size */
+            border: 4px solid #ccc;
             margin: 20px auto;
         }
     </style>
@@ -102,7 +105,7 @@ html_content = """
 <body>
     <h1>Thermal Camera View</h1>
     <p>This is a HTML page served from the Raspberry Pi Pico W. It uses javascript in your browser to upscale and render the thermal image.</p>
-    <canvas id="heatmap" width="320" height="240"></canvas>
+    <canvas id="heatmap" width="640" height="480"></canvas>
 
     <script>
 function drawHeatmap(data) {
@@ -123,11 +126,11 @@ function drawHeatmap(data) {
 
     const canvas = document.getElementById('heatmap');
     const ctx = canvas.getContext('2d');
-    const imageData = ctx.createImageData(320, 240);  // Create a blank image data object for 32x24 grid
+    const imageData = ctx.createImageData(640, 480);  // Create a blank image data object for 32x24 grid
 
     // Iterate through the heatmap data and map each value to a color
-    const pixelWidth = 10;  // Pixel width in the canvas (larger size for 32x24 grid)
-    const pixelHeight = 10;  // Pixel height in the canvas (larger size for 32x24 grid)
+    const pixelWidth = 20;  // Pixel width in the canvas (larger size for 32x24 grid)
+    const pixelHeight = 20;  // Pixel height in the canvas (larger size for 32x24 grid)
     for (let y = 0; y < 24; y++) {
         for (let x = 0; x < 32; x++) {
             let value = data[y] && data[y][x];  // Safeguard against undefined
@@ -136,7 +139,7 @@ function drawHeatmap(data) {
                 continue;  // Skip if data is missing
             }
             let colorValue = Math.floor((value - 20) * 255 / 10);  // Map value to color
-            let index = ((y * pixelHeight) * 320 + (x * pixelWidth)) * 4;
+            let index = ((y * pixelHeight) * 640 + (x * pixelWidth)) * 4;
 
             // Set RGB values (from blue to red)
             imageData.data[index] = colorValue;     // Red
@@ -147,7 +150,7 @@ function drawHeatmap(data) {
             // Now expand the current pixel to the 10x10 block in the canvas
             for (let dy = 0; dy < pixelHeight; dy++) {
                 for (let dx = 0; dx < pixelWidth; dx++) {
-                    let expandedIndex = ((y * pixelHeight + dy) * 320 + (x * pixelWidth + dx)) * 4;
+                    let expandedIndex = ((y * pixelHeight + dy) * 640 + (x * pixelWidth + dx)) * 4;
                     imageData.data[expandedIndex] = colorValue;     // Red
                     imageData.data[expandedIndex + 1] = 0;          // Green
                     imageData.data[expandedIndex + 2] = 255 - colorValue;  // Blue
@@ -172,7 +175,7 @@ function updateHeatmap() {
 }
 
 // Update the heatmap every 0.5 seconds
-setInterval(updateHeatmap, 500);
+setInterval(updateHeatmap, 250);
 
     </script>
 </body>
