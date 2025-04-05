@@ -123,40 +123,105 @@ function drawHeatmap(data) {
             return;
         }
     }
+function bilinearInterpolation(image, newWidth, newHeight) {
+    const originalHeight = image.length;
+    const originalWidth = image[0].length;
+    
+    // Create an empty 2D array for the new image
+    const upscaledImage = Array.from({ length: newHeight }, () => Array(newWidth).fill(0));
+    
+    // Calculate scaling factors
+    const xScale = (originalWidth - 1) / (newWidth - 1);
+    const yScale = (originalHeight - 1) / (newHeight - 1);
+    
+    for (let i = 0; i < newHeight; i++) {
+        for (let j = 0; j < newWidth; j++) {
+            // Map the new pixel to the original image
+            const x = j * xScale;
+            const y = i * yScale;
+            
+            // Get the coordinates of the surrounding pixels
+            const x1 = Math.floor(x);
+            const y1 = Math.floor(y);
+            const x2 = Math.min(x1 + 1, originalWidth - 1);
+            const y2 = Math.min(y1 + 1, originalHeight - 1);
+            
+            // Calculate the weights for interpolation
+            const a = x - x1;
+            const b = y - y1;
+            
+            // Perform bilinear interpolation
+            upscaledImage[i][j] = 
+                (1 - a) * (1 - b) * image[y1][x1] +
+                a * (1 - b) * image[y1][x2] +
+                (1 - a) * b * image[y2][x1] +
+                a * b * image[y2][x2];
+        }
+    }
+    
+    return upscaledImage;
+}
+
 
     const canvas = document.getElementById('heatmap');
     const ctx = canvas.getContext('2d');
     const imageData = ctx.createImageData(640, 480);  // Create a blank image data object for 32x24 grid
+    
+    const i_width = 320
+    const i_length = 240
+    
+    data = bilinearInterpolation(data, i_width, i_length);
+    console.log("Upscaled Data:", data);
 
     // Iterate through the heatmap data and map each value to a color
-    const pixelWidth = 20;  // Pixel width in the canvas (larger size for 32x24 grid)
-    const pixelHeight = 20;  // Pixel height in the canvas (larger size for 32x24 grid)
-    for (let y = 0; y < 24; y++) {
-        for (let x = 0; x < 32; x++) {
+    const pixelWidth = 2;  // Pixel width in the canvas (larger size for 32x24 grid)
+    const pixelHeight = 2;  // Pixel height in the canvas (larger size for 32x24 grid)
+    min_temp = Math.min(...data.flat());
+    max_temp = Math.max(...data.flat());
+    for (let y = 0; y < i_length; y++) {
+        for (let x = 0; x < i_width; x++) {
             let value = data[y] && data[y][x];  // Safeguard against undefined
             if (value === undefined) {
                 console.error(`Missing value at [${y}][${x}]`);
                 continue;  // Skip if data is missing
             }
-            let colorValue = Math.floor((value - 20) * 255 / 10);  // Map value to color
-            let index = ((y * pixelHeight) * 640 + (x * pixelWidth)) * 4;
+        let normalizedValue = (value - min_temp) / (max_temp - min_temp);  // Normalize to 0 - 1
+        let r = 0, g = 0, b = 0;
 
-            // Set RGB values (from blue to red)
-            imageData.data[index] = colorValue;     // Red
-            imageData.data[index + 1] = 0;          // Green
-            imageData.data[index + 2] = 255 - colorValue;  // Blue
-            imageData.data[index + 3] = 255;        // Alpha (full opacity)
+        // Black → Blue → Green → Red → Yellow → White gradient mapping
+        if (normalizedValue < 0.2) {
+            // Black to Blue
+            b = Math.floor(255 * (normalizedValue / 0.2));
+        } else if (normalizedValue < 0.4) {
+            // Blue to Green
+            b = Math.floor(255 * (1 - (normalizedValue - 0.2) / 0.2));
+            g = Math.floor(255 * ((normalizedValue - 0.2) / 0.2));
+        } else if (normalizedValue < 0.6) {
+            // Green to Red
+            g = Math.floor(255 * (1 - (normalizedValue - 0.4) / 0.2));
+            r = Math.floor(255 * ((normalizedValue - 0.4) / 0.2));
+        } else if (normalizedValue < 0.8) {
+            // Red to Yellow
+            r = 255;
+            g = Math.floor(255 * ((normalizedValue - 0.6) / 0.2));
+        } else {
+            // Yellow to White
+            r = 255;
+            g = 255;
+            b = Math.floor(255 * ((normalizedValue - 0.8) / 0.2));
+        }
 
-            // Now expand the current pixel to the 10x10 block in the canvas
-            for (let dy = 0; dy < pixelHeight; dy++) {
-                for (let dx = 0; dx < pixelWidth; dx++) {
-                    let expandedIndex = ((y * pixelHeight + dy) * 640 + (x * pixelWidth + dx)) * 4;
-                    imageData.data[expandedIndex] = colorValue;     // Red
-                    imageData.data[expandedIndex + 1] = 0;          // Green
-                    imageData.data[expandedIndex + 2] = 255 - colorValue;  // Blue
-                    imageData.data[expandedIndex + 3] = 255;        // Alpha (full opacity)
-                }
+        // Apply colors to the expanded block of pixels
+        for (let dy = 0; dy < pixelHeight; dy++) {
+            for (let dx = 0; dx < pixelWidth; dx++) {
+                let expandedIndex = ((y * pixelHeight + dy) * 640 + (x * pixelWidth + dx)) * 4;
+                imageData.data[expandedIndex] = r;     // Red
+                imageData.data[expandedIndex + 1] = g; // Green
+                imageData.data[expandedIndex + 2] = b; // Blue
+                imageData.data[expandedIndex + 3] = 255; // Alpha
             }
+        }
+
         }
     }
 
